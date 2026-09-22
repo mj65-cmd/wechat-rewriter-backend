@@ -24,7 +24,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 app = FastAPI(title="wechat-rewriter-backend", version="3.2-light")
 
@@ -36,6 +36,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/")
+async def index():
+    return HTMLResponse("""<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<title>公众号改写后端</title>
+<style>body{font-family:system-ui,sans-serif;max-width:640px;margin:12vh auto;
+padding:0 20px;color:#333;text-align:center}
+h1{font-size:22px}code{background:#f4f4f4;padding:2px 6px;border-radius:4px}
+.ok{color:#0a0}.card{background:#fafafa;border:1px solid #eee;border-radius:10px;
+padding:20px;text-align:left}</style></head><body>
+<h1>✅ 公众号深度改写 · 后端运行中</h1>
+<div class="card">
+<p>这是 API 后端，前端请使用：<br>
+<code>https://mjbes-wechat-rewriter.static.hf.space/</code></p>
+<p>可用端点：<code>GET /health</code> · <code>POST /api/grab</code> ·
+<code>POST /api/rewrite</code> · <code>POST /api/image</code> ·
+<a href="/docs">接口文档 /docs</a></p>
+<p class="ok">状态：正常</p>
+</div></body></html>""")
 
 
 @app.get("/health")
