@@ -168,7 +168,7 @@
     <div class="preview" id="previewBox" style="display:none"><iframe id="prevFrame"></iframe></div>
   </div>
 
-  <div class="foot">纯静态网页 · HuggingFace 免费托管 · 当前版本 <b>v2.1.1（2026-09-22 修复抓取按钮）</b> · 生成内容请人工复核事实与合规</div>
+  <div class="foot">纯静态网页 · HuggingFace 免费托管 · 当前版本 <b>v2.1.2（2026-09-22 修复抖音视频转文字）</b> · 生成内容请人工复核事实与合规</div>
 </div>
 
 <script>
@@ -315,22 +315,8 @@ $('mediaFile').addEventListener('change',async e=>{
 async function transcribeBlob(file,label){
   const sizeMB=file.size/1048576;
   if(sizeMB>500) throw new Error('文件超过500MB，请先剪辑或选择更短的视频');
-  setStatus('⏳ 正在读取「'+label+'」并提取音轨…（'+sizeMB.toFixed(1)+'MB）');
-  const ab=await file.arrayBuffer();
-  let ac;
-  try{ ac=new (window.AudioContext||window.webkitAudioContext)({sampleRate:16000}); }
-  catch(e){ ac=new (window.AudioContext||window.webkitAudioContext)(); }
-  let buf;
-  try{ buf=await ac.decodeAudioData(ab); }
-  catch(e){ throw new Error('无法解码该文件音轨，请换 MP4/MOV/MP3/WAV 格式'); }
-  /* 重采样到16kHz 单声道 */
-  let data=buf.getChannelData(0);
-  if(buf.sampleRate!==16000){
-    const ratio=buf.sampleRate/16000, len=Math.floor(buf.length/ratio), out=new Float32Array(len);
-    for(let i=0;i<len;i++){ out[i]=data[Math.floor(i*ratio)]; }
-    data=out;
-  }
-  const secs=Math.round(data.length/16000);
+  setStatus('⏳ 正在读取「'+label+'」并提取音轨…（'+sizeMB.toFixed(1)+'MB，MP4/MOV/MP3/WAV 均可）');
+  const {data,secs}=await extractAudio(file);
   if(secs>900) throw new Error('音频超过15分钟，免费本地模型建议先剪辑（或改用 whisper-small 提升准确度）');
   const pipe=await loadASR();
   setStatus('⏳ 正在把 '+Math.floor(secs/60)+'分'+secs%60+'秒 的口播转成文字…<br>本地运行不需要联网上传，视频越长耗时越久（约每分钟音频需 20-60 秒），请勿关闭页面。');
@@ -340,6 +326,57 @@ async function transcribeBlob(file,label){
   setRaw(text); setStatus('');
   $('junkWarn').style.display='none';
   flagOk('✅ 口播转文字完成（'+text.length+' 字）。<b>建议快速通读校对一遍</b>（专有名词可能有误），然后点「② 开始深度改写」。');
+}
+/* 抽取音轨：用 <video>/<audio> 元素播放 + MediaRecorder 捕获，兼容 MP4/MOV 等视频容器
+   （浏览器无法直接 decodeAudioData 视频容器，故先抽成 webm/opus 再解码） */
+async function extractAudio(file){
+  const url=URL.createObjectURL(file);
+  const el=document.createElement('video');
+  el.src=url; el.muted=true; el.playsInline=true; el.crossOrigin='anonymous';
+  try{
+    await new Promise((res,rej)=>{ el.onloadedmetadata=res;
+      el.onerror=()=>rej(new Error('无法读取该文件，请换 MP4/MOV/MP3/WAV 格式')); });
+    const ac=new (window.AudioContext||window.webkitAudioContext)();
+    const srcNode=ac.createMediaElementSource(el);
+    const dest=ac.createMediaStreamDestination();
+    srcNode.connect(dest);
+    let mr;
+    try{ mr=new MediaRecorder(dest.stream); }
+    catch(e){ throw new Error('当前浏览器不支持录音转写，请用 Chrome 或 Edge'); }
+    const chunks=[];
+    mr.ondataavailable=e=>{ if(e.data&&e.data.size) chunks.push(e.data); };
+    const stopped=new Promise(res=> mr.onstop=res);
+    mr.start();
+    try{ await el.play(); }catch(e){ /* 已静音，通常可自动播放 */ }
+    await new Promise(res=>{
+      let done=false; const fin=()=>{ if(done)return; done=true; res(); };
+      el.onended=fin;
+      setTimeout(fin, (el.duration||600)*1000 + 8000);
+    });
+    mr.stop(); await stopped;
+    URL.revokeObjectURL(url);
+    const blob=new Blob(chunks,{type:'audio/webm'});
+    if(!blob.size) throw new Error('未能提取到音轨，请换 MP4/MOV/MP3/WAV 格式');
+    const ab=await blob.arrayBuffer();
+    const buf=await ac.decodeAudioData(ab);
+    let data=buf.getChannelData(0);
+    if(buf.sampleRate!==16000){
+      const ratio=buf.sampleRate/16000, len=Math.floor(buf.length/ratio), out=new Float32Array(len);
+      for(let i=0;i<len;i++){ out[i]=data[Math.floor(i*ratio)]; }
+      data=out;
+    }
+    return {data, secs:Math.round(data.length/16000)};
+  }catch(err){
+    /* 兜底：纯音频文件可直接解码 */
+    try{
+      const ab2=await file.arrayBuffer();
+      const ac2=new (window.AudioContext||window.webkitAudioContext)();
+      const buf2=await ac2.decodeAudioData(ab2);
+      let d=buf2.getChannelData(0);
+      if(buf2.sampleRate!==16000){ const r=buf2.sampleRate/16000,l=Math.floor(buf2.length/r),o=new Float32Array(l); for(let i=0;i<l;i++)o[i]=d[Math.floor(i*r)]; d=o; }
+      return {data:d, secs:Math.round(d.length/16000)};
+    }catch(e2){ throw err; }
+  }
 }
 function usePasted(){
   const v=$('srcInput').value.trim();
