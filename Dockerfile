@@ -7,8 +7,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 再放源码
+# 再放源码与前端静态文件
 COPY main.py .
+COPY static ./static
 
 EXPOSE 8000
 
