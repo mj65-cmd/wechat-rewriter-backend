@@ -1,0 +1,14 @@
+# 后端依赖（全开源免费，适配 Render 免费 512MB 实例）
+# ASR 选用 sherpa-onnx 版 SenseVoice（CPU 友好、无 torch、模型 ~250MB）
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.12
+httpx==0.27.2
+requests==2.32.3
+numpy==1.26.4
+trafilatura==1.12.2
+yt-dlp==2024.9.27
+openai==1.51.0
+sherpa-onnx==1.10.20
+soundfile==0.12.1
+scipy==1.14.1

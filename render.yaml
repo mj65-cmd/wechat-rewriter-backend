@@ -1,0 +1,25 @@
+# Render 部署蓝图 (免费档, 无需 Dockerfile / 无需信用卡)
+# 把本目录内容推到 GitHub 空仓库根目录, 用 Render API 或 Dashboard 部署此蓝图即可。
+services:
+  - type: web
+    name: wechat-rewriter-backend
+    runtime: python
+    plan: free
+    region: oregon          # 海外节点, 抓 YouTube/X 顺畅; 国内平台靠登录 Cookie 穿透
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: OPENROUTER_KEY      # 在 Render Dashboard 里填你的 OpenRouter Key (可选, 不填则前端必须带 apiKey)
+        sync: false
+      - key: GROQ_KEY            # 可选: Groq 免费 Key, 做多供应商轮换抗限流
+        sync: false
+      - key: GEMINI_KEY          # 可选: Gemini 免费 Key
+        sync: false
+      - key: DEFAULT_MODEL
+        value: "nvidia/nemotron-3-super-120b-a12b:free"
